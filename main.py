@@ -45,8 +45,8 @@ def main():
             cv2.addWeighted(overlay, 0.5, frame, 0.5, 0, frame)
 
             suit_name = os.path.basename(
-                app.active_suits_configs[app.current_suit_idx]['path']) if app.active_suits_configs else "N/A"
-            suit_sex = app.active_suits_configs[app.current_suit_idx]['sex'] if app.active_suits_configs else "-"
+                app.active_suits_configs[app.current_suit_idx].path) if app.active_suits_configs else "N/A"
+            suit_sex = app.active_suits_configs[app.current_suit_idx].sex if app.active_suits_configs else "-"
             smooth_status = "ON" if app.smoothing_enabled else "OFF"
 
             cv2.putText(frame, f"[S] Switch Suit  [F] Change Sex  [T] Smooth: {smooth_status}  [Q] Quit",
@@ -73,3 +73,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

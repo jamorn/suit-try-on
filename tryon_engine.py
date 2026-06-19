@@ -4,8 +4,7 @@ import sys
 from typing import Any
 import numpy as np
 import mediapipe as mp
-from mediapipe.tasks.python.vision.pose_landmarker import PoseLandmarkerResult
-from config import SUIT_DATA, MODEL_PATH
+from config import SUIT_DATA, MODEL_PATH, SuitConfig
 
 # --- Constants ---
 SHOULDER_SCALE = 1.5
@@ -27,20 +26,20 @@ class SuitTryOnApp:
         )
         self.detector: Any = mp.tasks.vision.PoseLandmarker.create_from_options(
             options)
-        self.all_suits_configs: list[dict[str, Any]] = SUIT_DATA
-        self.active_suits_configs: list[dict[str, Any]] = []
+        self.all_suits_configs: list[SuitConfig] = SUIT_DATA
+        self.active_suits_configs: list[SuitConfig] = []
         self.current_suit_idx: int = 0
         self.current_sex: str | None = None
 
         # Cache รูปสูท: โหลดเก็บไว้ใน Dict เพื่อไม่ให้อ่าน Disk ทุกเฟรม
         self.suit_cache: dict[str, np.ndarray] = {}
         for s in self.all_suits_configs:
-            if not os.path.exists(s['path']):
-                print(f"Warning: ไม่พบไฟล์รูป {s['path']}")
+            if not os.path.exists(s.path):
+                print(f"Warning: ไม่พบไฟล์รูป {s.path}")
                 continue
-            img = cv2.imread(s['path'], cv2.IMREAD_UNCHANGED)
+            img = cv2.imread(s.path, cv2.IMREAD_UNCHANGED)
             if img is not None:
-                self.suit_cache[s['path']] = img
+                self.suit_cache[s.path] = img
 
         if not self.suit_cache:
             print("Error: ไม่มีรูปสูทที่โหลดได้เลย")
@@ -54,12 +53,12 @@ class SuitTryOnApp:
 
     def set_user_sex(self, sex: str) -> None:
         self.current_sex = sex
-        filtered = [s for s in self.all_suits_configs if s['sex']
-                    == sex and s.get('status', True)]
+        filtered = [s for s in self.all_suits_configs if s.sex
+                    == sex and s.enabled]
         if not filtered:
             print(f"Warning: ไม่มีสูทสำหรับเพศ '{sex}' คงค่าเดิม")
             return
-        self.active_suits_configs = sorted(filtered, key=lambda x: x['order'])
+        self.active_suits_configs = sorted(filtered, key=lambda x: x.order)
         self.current_suit_idx = 0
 
     def overlay_suit(
@@ -72,7 +71,7 @@ class SuitTryOnApp:
 
         config = self.active_suits_configs[self.current_suit_idx]
         # ใช้ Cache แทนการอ่านไฟล์ทุกเฟรม
-        suit_img = self.suit_cache.get(config['path'])
+        suit_img = self.suit_cache.get(config.path)
         if suit_img is None:
             return frame
 
@@ -105,7 +104,7 @@ class SuitTryOnApp:
 
         # 3. คำนวณตำแหน่งกึ่งกลาง
         center_y = int((l_shld.y + r_shld.y) / 2 * h) - \
-            int(shld_width * config.get('y_offset', 0.25))
+            int(shld_width * config.y_offset)
         center_x = int((l_shld.x + r_shld.x) / 2 * w)
 
         # 4. EMA Smoothing (ถ้าเปิดใช้งาน)
