@@ -1,10 +1,8 @@
 import logging
 import cv2
 import os
-import sys
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any
 import numpy as np
 import mediapipe as mp
 from mediapipe.framework.formats.landmark_pb2 import NormalizedLandmark
@@ -15,9 +13,11 @@ logger = logging.getLogger(__name__)
 # --- Constants ---
 SHOULDER_SCALE = 1.5
 SMOOTH_ALPHA_DEFAULT = 0.5
+LEFT_SHOULDER = 11
+RIGHT_SHOULDER = 12
 
 # --- Types ---
-PoseLandmarkList = Any  # MediaPipe type; Sequence of NormalizedLandmark
+PoseLandmarkList = Sequence[NormalizedLandmark]
 LandmarkListSequence = Sequence[PoseLandmarkList]
 
 
@@ -47,11 +47,17 @@ class SuitRenderer:
         config: SuitConfig,
     ) -> np.ndarray:
         """วางสูทลงบน frame"""
+        if not landmarks_list:
+            return frame
+
         suit_img = self.suit_cache.get(config.path)
         if suit_img is None:
             return frame
 
         landmarks = self._select_person(landmarks_list)
+        if landmarks is None:
+            return frame
+
         rect = self._calculate_suit_rect(frame.shape, landmarks, suit_img, config.y_offset)
         self._blend(frame, suit_img, rect)
 
@@ -69,13 +75,14 @@ class SuitRenderer:
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _select_person(landmarks_list: LandmarkListSequence) -> PoseLandmarkList:
+    def _select_person(landmarks_list: LandmarkListSequence) -> PoseLandmarkList | None:
         """เลือกคนที่อยู่ใกล้กล้องที่สุด (ไหล่กว้างที่สุด)"""
-        if len(landmarks_list) == 1:
-            return landmarks_list[0]
+        valid = [lm for lm in landmarks_list if len(lm) > RIGHT_SHOULDER]
+        if not valid:
+            return None
         return max(
-            landmarks_list,
-            key=lambda lm: abs(lm[11].x - lm[12].x),
+            valid,
+            key=lambda lm: abs(lm[LEFT_SHOULDER].x - lm[RIGHT_SHOULDER].x),
         )
 
     def _calculate_suit_rect(
@@ -88,10 +95,16 @@ class SuitRenderer:
         """คำนวณตำแหน่งและขนาดของสูทที่ต้องการวาง"""
         h, w = frame_shape[:2]
 
-        left_shld: NormalizedLandmark = landmarks[11]
-        right_shld: NormalizedLandmark = landmarks[12]
+        left_shld = landmarks[LEFT_SHOULDER]
+        right_shld = landmarks[RIGHT_SHOULDER]
 
         shoulder_width = int(abs(left_shld.x - right_shld.x) * w * SHOULDER_SCALE)
+        if shoulder_width <= 0:
+            shoulder_width = 1
+
+        if suit_img.shape[1] == 0:
+            return SuitRect(x=0, y=0, width=0, height=0)
+
         aspect = suit_img.shape[0] / suit_img.shape[1]
         suit_height = int(shoulder_width * aspect)
 
@@ -121,6 +134,9 @@ class SuitRenderer:
         rect: SuitRect,
     ) -> None:
         """วางภาพสูทลงบน frame พร้อม Clipping และ Alpha Blending"""
+        if rect.width <= 0 or rect.height <= 0:
+            return
+
         h, w = frame.shape[:2]
 
         cx, cy = rect.x, rect.y
@@ -169,15 +185,16 @@ class SuitTryOnApp:
     def __init__(self) -> None:
         # ตรวจสอบไฟล์โมเดล
         if not os.path.exists(MODEL_PATH):
-            logger.error("ไม่พบไฟล์โมเดล %s", MODEL_PATH)
-            sys.exit(1)
+            raise FileNotFoundError(f"ไม่พบไฟล์โมเดล {MODEL_PATH}")
 
         base_options = mp.tasks.BaseOptions(model_asset_path=MODEL_PATH)
         options = mp.tasks.vision.PoseLandmarkerOptions(
             base_options=base_options,
             running_mode=mp.tasks.vision.RunningMode.IMAGE
         )
-        self.detector: Any = mp.tasks.vision.PoseLandmarker.create_from_options(options)
+        self.detector: mp.tasks.vision.PoseLandmarker = (
+            mp.tasks.vision.PoseLandmarker.create_from_options(options)
+        )
 
         # Suit config
         self.all_suits_configs: list[SuitConfig] = SUIT_DATA
@@ -196,18 +213,17 @@ class SuitTryOnApp:
                 suit_cache[s.path] = img
 
         if not suit_cache:
-            logger.error("ไม่มีรูปสูทที่โหลดได้เลย")
-            sys.exit(1)
+            raise RuntimeError("ไม่มีรูปสูทที่โหลดได้เลย")
 
         # Renderer
         self.renderer = SuitRenderer(suit_cache)
 
     def set_user_sex(self, sex: str) -> None:
-        self.current_sex = sex
         filtered = [s for s in self.all_suits_configs if s.sex == sex and s.enabled]
         if not filtered:
-            logger.warning("ไม่มีสูทสำหรับเพศ '%s' คงค่าเดิม", sex)
+            logger.warning("ไม่มีสูทสำหรับเพศ '%s' คงค่าเดิม (%s)", sex, self.current_sex)
             return
+        self.current_sex = sex
         self.active_suits_configs = sorted(filtered, key=lambda x: x.order)
         self.current_suit_idx = 0
 
@@ -230,6 +246,7 @@ class SuitTryOnApp:
         self.renderer.toggle_smoothing()
 
     def switch_suit(self) -> None:
-        if self.active_suits_configs:
-            self.current_suit_idx = (
-                self.current_suit_idx + 1) % len(self.active_suits_configs)
+        if not self.active_suits_configs:
+            return
+        self.current_suit_idx = (
+            self.current_suit_idx + 1) % len(self.active_suits_configs)

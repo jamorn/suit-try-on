@@ -1,13 +1,24 @@
 # main.py
+import logging
 import cv2
 import os
 import mediapipe as mp
 from tryon_engine import SuitTryOnApp
 from config import DEFAULT_SEX
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(levelname)s %(message)s",
+)
+
 
 def main():
-    app = SuitTryOnApp()
+    try:
+        app = SuitTryOnApp()
+    except (FileNotFoundError, RuntimeError) as e:
+        logging.error(e)
+        return
+
     app.set_user_sex(DEFAULT_SEX)
 
     cv2.namedWindow('Virtual Try-On', cv2.WINDOW_NORMAL)
@@ -16,14 +27,15 @@ def main():
     cap = cv2.VideoCapture(0)
 
     if not cap.isOpened():
-        print("Error: ไม่สามารถเปิดกล้องได้")
+        cap.release()
+        logging.error("ไม่สามารถเปิดกล้องได้")
         return
 
     try:
         while cap.isOpened():
             ret, frame = cap.read()
             if not ret:
-                print("Warning: ไม่สามารถอ่านเฟรมจากกล้องได้")
+                logging.warning("ไม่สามารถอ่านเฟรมจากกล้องได้")
                 break
 
             # แปลงสีสำหรับ MediaPipe
@@ -44,9 +56,12 @@ def main():
             cv2.rectangle(overlay, (0, h - 80), (w, h), (0, 0, 0), -1)
             cv2.addWeighted(overlay, 0.5, frame, 0.5, 0, frame)
 
-            suit_name = os.path.basename(
-                app.active_suits_configs[app.current_suit_idx].path) if app.active_suits_configs else "N/A"
-            suit_sex = app.active_suits_configs[app.current_suit_idx].sex if app.active_suits_configs else "-"
+            current = app.active_suits_configs[app.current_suit_idx] if app.active_suits_configs else None
+            if current:
+                suit_name = os.path.basename(current.path)
+                suit_sex = current.sex
+            else:
+                suit_name, suit_sex = "N/A", "-"
             smooth_status = "ON" if app.smoothing_enabled else "OFF"
 
             cv2.putText(frame, f"[S] Switch Suit  [F] Change Sex  [T] Smooth: {smooth_status}  [Q] Quit",
