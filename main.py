@@ -15,25 +15,19 @@ logging.basicConfig(
 
 def main():
     app = None
+    cap = None
     try:
         app = SuitTryOnApp()
-    except (FileNotFoundError, RuntimeError) as e:
-        logging.error(e)
-        return
+        app.set_user_sex(DEFAULT_SEX)
 
-    app.set_user_sex(DEFAULT_SEX)
+        cv2.namedWindow('Virtual Try-On', cv2.WINDOW_NORMAL)
+        cv2.resizeWindow('Virtual Try-On', 960, 720)
 
-    cv2.namedWindow('Virtual Try-On', cv2.WINDOW_NORMAL)
-    cv2.resizeWindow('Virtual Try-On', 960, 720)
+        cap = cv2.VideoCapture(0)
+        if not cap.isOpened():
+            logging.error("ไม่สามารถเปิดกล้องได้")
+            return
 
-    cap = cv2.VideoCapture(0)
-
-    if not cap.isOpened():
-        cap.release()
-        logging.error("ไม่สามารถเปิดกล้องได้")
-        return
-
-    try:
         while cap.isOpened():
             ret, frame = cap.read()
             if not ret:
@@ -82,10 +76,13 @@ def main():
             elif key == ord('t'):
                 app.toggle_smoothing()
 
+    except (FileNotFoundError, RuntimeError) as e:
+        logging.error(e)
     finally:
         if app:
             app.close()
-        cap.release()
+        if cap and cap.isOpened():
+            cap.release()
         cv2.destroyAllWindows()
 
 

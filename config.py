@@ -1,16 +1,17 @@
+# config.py
 from dataclasses import dataclass
-
+from typing import Literal
 
 @dataclass(slots=True)
 class SuitConfig:
     path: str
     order: int
-    sex: str
+    sex: Literal['M', 'F']
     enabled: bool = True
     y_offset: float = 0.25
 
 
-SUIT_DATA: list[SuitConfig] = [
+SUIT_DATA: tuple[SuitConfig, ...] = (
     SuitConfig(
         path='assets/male_suit_1.png',
         order=1,
@@ -39,7 +40,7 @@ SUIT_DATA: list[SuitConfig] = [
         enabled=True,
         y_offset=0.24,
     ),
-]
+)
 
 MODEL_PATH = 'assets/pose_landmarker_lite.task'
-DEFAULT_SEX = 'M'
+DEFAULT_SEX: Literal['M', 'F'] = 'M'
