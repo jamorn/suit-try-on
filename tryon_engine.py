@@ -1,15 +1,33 @@
+import logging
 import cv2
 import os
 import sys
+from collections.abc import Sequence
+from dataclasses import dataclass
 from typing import Any
 import numpy as np
 import mediapipe as mp
+from mediapipe.framework.formats.landmark_pb2 import NormalizedLandmark
 from config import SUIT_DATA, MODEL_PATH, SuitConfig
+
+logger = logging.getLogger(__name__)
 
 # --- Constants ---
 SHOULDER_SCALE = 1.5
 SMOOTH_ALPHA_DEFAULT = 0.5
-BOTTOM_BAR_HEIGHT = 80
+
+# --- Types ---
+PoseLandmarkList = Any  # MediaPipe type; Sequence of NormalizedLandmark
+LandmarkListSequence = Sequence[PoseLandmarkList]
+
+
+@dataclass(slots=True)
+class SuitRect:
+    """ตำแหน่งและขนาดของสูทบน frame"""
+    x: int
+    y: int
+    width: int
+    height: int
 
 
 class SuitRenderer:
@@ -25,7 +43,7 @@ class SuitRenderer:
     def render(
         self,
         frame: np.ndarray,
-        landmarks_list: Any,
+        landmarks_list: LandmarkListSequence,
         config: SuitConfig,
     ) -> np.ndarray:
         """วางสูทลงบน frame"""
@@ -44,14 +62,14 @@ class SuitRenderer:
         self._smooth_center_x = None
         self._smooth_center_y = None
         status = "ON" if self.smoothing_enabled else "OFF"
-        print(f"EMA Smoothing: {status} (alpha={self.smooth_alpha})")
+        logger.info("EMA Smoothing: %s (alpha=%s)", status, self.smooth_alpha)
 
     # ------------------------------------------------------------------
     # Private helpers
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _select_person(landmarks_list: Any) -> Any:
+    def _select_person(landmarks_list: LandmarkListSequence) -> PoseLandmarkList:
         """เลือกคนที่อยู่ใกล้กล้องที่สุด (ไหล่กว้างที่สุด)"""
         if len(landmarks_list) == 1:
             return landmarks_list[0]
@@ -63,15 +81,15 @@ class SuitRenderer:
     def _calculate_suit_rect(
         self,
         frame_shape: tuple[int, ...],
-        landmarks: Any,
+        landmarks: PoseLandmarkList,
         suit_img: np.ndarray,
         y_offset: float,
-    ) -> dict[str, int]:
+    ) -> SuitRect:
         """คำนวณตำแหน่งและขนาดของสูทที่ต้องการวาง"""
         h, w = frame_shape[:2]
 
-        left_shld = landmarks[11]
-        right_shld = landmarks[12]
+        left_shld: NormalizedLandmark = landmarks[11]
+        right_shld: NormalizedLandmark = landmarks[12]
 
         shoulder_width = int(abs(left_shld.x - right_shld.x) * w * SHOULDER_SCALE)
         aspect = suit_img.shape[0] / suit_img.shape[1]
@@ -83,12 +101,7 @@ class SuitRenderer:
         if self.smoothing_enabled:
             center_x, center_y = self._smooth(center_x, center_y)
 
-        return {
-            "x": center_x,
-            "y": center_y,
-            "width": shoulder_width,
-            "height": suit_height,
-        }
+        return SuitRect(x=center_x, y=center_y, width=shoulder_width, height=suit_height)
 
     def _smooth(self, x: int, y: int) -> tuple[int, int]:
         """EMA Smoothing ลดการกระตุก"""
@@ -105,13 +118,13 @@ class SuitRenderer:
     def _blend(
         frame: np.ndarray,
         suit_img: np.ndarray,
-        rect: dict[str, int],
+        rect: SuitRect,
     ) -> None:
         """วางภาพสูทลงบน frame พร้อม Clipping และ Alpha Blending"""
         h, w = frame.shape[:2]
 
-        cx, cy = rect["x"], rect["y"]
-        sw, sh = rect["width"], rect["height"]
+        cx, cy = rect.x, rect.y
+        sw, sh = rect.width, rect.height
 
         suit_resized = cv2.resize(suit_img, (sw, sh))
 
@@ -146,7 +159,8 @@ class SuitRenderer:
             blended = (1 - alpha) * roi_f + alpha * suit_rgb
             roi[:, :, :] = blended.astype(np.uint8)
         else:
-            frame[y1:y2, x1:x2] = suit_cropped[:, :, :3]
+            # Fallback: วางทับแบบทึบ (ใช้ clipped coordinates)
+            frame[frame_y1:frame_y2, frame_x1:frame_x2] = suit_cropped[:, :, :3]
 
 
 class SuitTryOnApp:
@@ -155,7 +169,7 @@ class SuitTryOnApp:
     def __init__(self) -> None:
         # ตรวจสอบไฟล์โมเดล
         if not os.path.exists(MODEL_PATH):
-            print(f"Error: ไม่พบไฟล์โมเดล {MODEL_PATH}")
+            logger.error("ไม่พบไฟล์โมเดล %s", MODEL_PATH)
             sys.exit(1)
 
         base_options = mp.tasks.BaseOptions(model_asset_path=MODEL_PATH)
@@ -175,14 +189,14 @@ class SuitTryOnApp:
         suit_cache: dict[str, np.ndarray] = {}
         for s in self.all_suits_configs:
             if not os.path.exists(s.path):
-                print(f"Warning: ไม่พบไฟล์รูป {s.path}")
+                logger.warning("ไม่พบไฟล์รูป %s", s.path)
                 continue
             img = cv2.imread(s.path, cv2.IMREAD_UNCHANGED)
             if img is not None:
                 suit_cache[s.path] = img
 
         if not suit_cache:
-            print("Error: ไม่มีรูปสูทที่โหลดได้เลย")
+            logger.error("ไม่มีรูปสูทที่โหลดได้เลย")
             sys.exit(1)
 
         # Renderer
@@ -192,7 +206,7 @@ class SuitTryOnApp:
         self.current_sex = sex
         filtered = [s for s in self.all_suits_configs if s.sex == sex and s.enabled]
         if not filtered:
-            print(f"Warning: ไม่มีสูทสำหรับเพศ '{sex}' คงค่าเดิม")
+            logger.warning("ไม่มีสูทสำหรับเพศ '%s' คงค่าเดิม", sex)
             return
         self.active_suits_configs = sorted(filtered, key=lambda x: x.order)
         self.current_suit_idx = 0
@@ -204,7 +218,7 @@ class SuitTryOnApp:
     def overlay_suit(
         self,
         frame: np.ndarray,
-        landmarks_list: Any,
+        landmarks_list: LandmarkListSequence,
     ) -> np.ndarray:
         if not self.active_suits_configs:
             return frame
