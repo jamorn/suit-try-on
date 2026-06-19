@@ -1,4 +1,6 @@
 import cv2
+import os
+import sys
 import numpy as np
 import mediapipe as mp
 from config import SUIT_DATA, MODEL_PATH
@@ -6,6 +8,11 @@ from config import SUIT_DATA, MODEL_PATH
 
 class SuitTryOnApp:
     def __init__(self):
+        # ตรวจสอบไฟล์โมเดล
+        if not os.path.exists(MODEL_PATH):
+            print(f"Error: ไม่พบไฟล์โมเดล {MODEL_PATH}")
+            sys.exit(1)
+
         base_options = mp.tasks.BaseOptions(model_asset_path=MODEL_PATH)
         options = mp.tasks.vision.PoseLandmarkerOptions(
             base_options=base_options,
@@ -20,9 +27,16 @@ class SuitTryOnApp:
         # Cache รูปสูท: โหลดเก็บไว้ใน Dict เพื่อไม่ให้อ่าน Disk ทุกเฟรม
         self.suit_cache = {}
         for s in self.all_suits_configs:
+            if not os.path.exists(s['path']):
+                print(f"Warning: ไม่พบไฟล์รูป {s['path']}")
+                continue
             img = cv2.imread(s['path'], cv2.IMREAD_UNCHANGED)
             if img is not None:
                 self.suit_cache[s['path']] = img
+
+        if not self.suit_cache:
+            print("Error: ไม่มีรูปสูทที่โหลดได้เลย")
+            sys.exit(1)
 
         # EMA Smoothing (Optional)
         self.smoothing_enabled = False
