@@ -2,6 +2,7 @@
 import logging
 import cv2
 import os
+import numpy as np
 import mediapipe as mp
 from tryon_engine import SuitTryOnApp
 from config import DEFAULT_SEX
@@ -13,6 +14,7 @@ logging.basicConfig(
 
 
 def main():
+    app = None
     try:
         app = SuitTryOnApp()
     except (FileNotFoundError, RuntimeError) as e:
@@ -51,10 +53,9 @@ def main():
 
             # --- OSD: แสดง Key Guide และสถานะ ---
             h, w, _ = frame.shape
-            overlay = frame.copy()
-            # พื้นหลังโปร่งใสด้านล่าง
-            cv2.rectangle(overlay, (0, h - 80), (w, h), (0, 0, 0), -1)
-            cv2.addWeighted(overlay, 0.5, frame, 0.5, 0, frame)
+            roi = frame[h - 80:h, :]
+            overlay = np.zeros_like(roi)
+            cv2.addWeighted(overlay, 0.5, roi, 0.5, 0, roi)
 
             current = app.active_suits_configs[app.current_suit_idx] if app.active_suits_configs else None
             if current:
@@ -82,6 +83,8 @@ def main():
                 app.toggle_smoothing()
 
     finally:
+        if app:
+            app.close()
         cap.release()
         cv2.destroyAllWindows()
 
