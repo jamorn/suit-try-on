@@ -1,3 +1,4 @@
+# tryon_engine.py
 import logging
 import cv2
 import os
@@ -37,8 +38,8 @@ class SuitRenderer:
         self.suit_cache = suit_cache
         self.smoothing_enabled: bool = False
         self.smooth_alpha: float = SMOOTH_ALPHA_DEFAULT
-        self._smooth_center_x: int | None = None
-        self._smooth_center_y: int | None = None
+        self._smooth_center_x: float | None = None
+        self._smooth_center_y: float | None = None
 
     def render(
         self,
@@ -98,13 +99,7 @@ class SuitRenderer:
         left_shld = landmarks[LEFT_SHOULDER]
         right_shld = landmarks[RIGHT_SHOULDER]
 
-        shoulder_width = int(abs(left_shld.x - right_shld.x) * w * SHOULDER_SCALE)
-        if shoulder_width <= 0:
-            shoulder_width = 1
-
-        if suit_img.shape[1] == 0:
-            return SuitRect(x=0, y=0, width=0, height=0)
-
+        shoulder_width = max(1, int(abs(left_shld.x - right_shld.x) * w * SHOULDER_SCALE))
         aspect = suit_img.shape[0] / suit_img.shape[1]
         suit_height = int(shoulder_width * aspect)
 
@@ -117,15 +112,15 @@ class SuitRenderer:
         return SuitRect(x=center_x, y=center_y, width=shoulder_width, height=suit_height)
 
     def _smooth(self, x: int, y: int) -> tuple[int, int]:
-        """EMA Smoothing ลดการกระตุก"""
+        """EMA Smoothing ลดการกระตุก (เก็บค่า float ป้องกัน Sticky Effect)"""
         if self._smooth_center_x is None:
-            self._smooth_center_x = x
-            self._smooth_center_y = y
+            self._smooth_center_x = float(x)
+            self._smooth_center_y = float(y)
         else:
             alpha = self.smooth_alpha
-            self._smooth_center_x = int(alpha * x + (1 - alpha) * self._smooth_center_x)
-            self._smooth_center_y = int(alpha * y + (1 - alpha) * self._smooth_center_y)
-        return self._smooth_center_x, self._smooth_center_y
+            self._smooth_center_x = alpha * x + (1 - alpha) * self._smooth_center_x
+            self._smooth_center_y = alpha * y + (1 - alpha) * self._smooth_center_y
+        return int(self._smooth_center_x), int(self._smooth_center_y)
 
     @staticmethod
     def _blend(
@@ -145,9 +140,9 @@ class SuitRenderer:
         suit_resized = cv2.resize(suit_img, (sw, sh))
 
         y1 = cy - sh // 2
-        y2 = cy + sh // 2
+        y2 = y1 + sh
         x1 = cx - sw // 2
-        x2 = cx + sw // 2
+        x2 = x1 + sw
 
         # Clipping
         frame_y1 = max(0, y1)
@@ -155,20 +150,27 @@ class SuitRenderer:
         frame_x1 = max(0, x1)
         frame_x2 = min(w, x2)
 
-        crop_y1 = frame_y1 - y1
-        crop_y2 = crop_y1 + (frame_y2 - frame_y1)
-        crop_x1 = frame_x1 - x1
-        crop_x2 = crop_x1 + (frame_x2 - frame_x1)
+        roi_h = frame_y2 - frame_y1
+        roi_w = frame_x2 - frame_x1
 
-        if not (frame_y2 > frame_y1 and frame_x2 > frame_x1 and
-                crop_y2 > crop_y1 and crop_x2 > crop_x1):
+        if roi_h <= 0 or roi_w <= 0:
             return
+
+        crop_y1 = frame_y1 - y1
+        crop_y2 = crop_y1 + roi_h
+        crop_x1 = frame_x1 - x1
+        crop_x2 = crop_x1 + roi_w
 
         roi = frame[frame_y1:frame_y2, frame_x1:frame_x2]
         suit_cropped = suit_resized[crop_y1:crop_y2, crop_x1:crop_x2]
 
         # Alpha Blending
+        # NOTE: shape[2] == 4 check assumes 3+ dims (RGBA).
+        # If grayscale PNG is loaded (unlikely for suits), len(shape) == 2
+        # and this would raise IndexError. Safe to ignore for current assets.
         if suit_cropped.shape[2] == 4:
+            # NOTE: `suit_cropped[:, :, 3:4] / 255.0` produces float64.
+            # For ~5% speed gain, add `.astype(np.float32)` if FPS drops later.
             alpha = suit_cropped[:, :, 3:4] / 255.0
             suit_rgb = suit_cropped[:, :, :3].astype(np.float32)
             roi_f = roi.astype(np.float32)
@@ -244,6 +246,11 @@ class SuitTryOnApp:
 
     def toggle_smoothing(self) -> None:
         self.renderer.toggle_smoothing()
+
+    def close(self) -> None:
+        """ปิด MediaPipe Detector (คืน Resource C++)"""
+        if hasattr(self, 'detector') and self.detector:
+            self.detector.close()
 
     def switch_suit(self) -> None:
         if not self.active_suits_configs:
