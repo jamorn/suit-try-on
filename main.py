@@ -9,14 +9,15 @@ from config import DEFAULT_SEX
 def main():
     app = SuitTryOnApp()
     app.set_user_sex(DEFAULT_SEX)
+
+    cv2.namedWindow('Virtual Try-On', cv2.WINDOW_NORMAL)
+    cv2.resizeWindow('Virtual Try-On', 960, 720)
+
     cap = cv2.VideoCapture(0)
 
     if not cap.isOpened():
         print("Error: ไม่สามารถเปิดกล้องได้")
         return
-
-        cv2.namedWindow('Virtual Try-On', cv2.WINDOW_NORMAL)
-    cv2.resizeWindow('Virtual Try-On', 960, 720)
 
     try:
         while cap.isOpened():
@@ -34,7 +35,7 @@ def main():
             results = app.detector.detect(mp_image)
 
             if results.pose_landmarks:
-                frame = app.overlay_suit(frame, results.pose_landmarks[0])
+                frame = app.overlay_suit(frame, results.pose_landmarks)
 
             # --- OSD: แสดง Key Guide และสถานะ ---
             h, w, _ = frame.shape
@@ -60,8 +61,7 @@ def main():
             elif key == ord('s'):
                 app.switch_suit()
             elif key == ord('f'):
-                new_sex = 'F' if app.active_suits_configs and app.active_suits_configs[
-                    0]['sex'] == 'M' else 'M'
+                new_sex = 'F' if app.current_sex == 'M' else 'M'
                 app.set_user_sex(new_sex)
             elif key == ord('t'):
                 app.toggle_smoothing()

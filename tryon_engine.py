@@ -23,6 +23,7 @@ class SuitTryOnApp:
         self.all_suits_configs = SUIT_DATA
         self.active_suits_configs = []
         self.current_suit_idx = 0
+        self.current_sex = None
 
         # Cache รูปสูท: โหลดเก็บไว้ใน Dict เพื่อไม่ให้อ่าน Disk ทุกเฟรม
         self.suit_cache = {}
@@ -34,8 +35,8 @@ class SuitTryOnApp:
             if img is not None:
                 self.suit_cache[s['path']] = img
 
-        if not self.suit_cache:
-            print("Error: ไม่มีรูปสูทที่โหลดได้เลย")
+            if not self.suit_cache:
+                print("Error: ไม่มีรูปสูทที่โหลดได้เลย")
             sys.exit(1)
 
         # EMA Smoothing (Optional)
@@ -45,12 +46,16 @@ class SuitTryOnApp:
         self._smooth_center_y = None
 
     def set_user_sex(self, sex):
+        self.current_sex = sex
         filtered = [s for s in self.all_suits_configs if s['sex']
                     == sex and s.get('status', True)]
+        if not filtered:
+            print(f"Warning: ไม่มีสูทสำหรับเพศ '{sex}' คงค่าเดิม")
+            return
         self.active_suits_configs = sorted(filtered, key=lambda x: x['order'])
         self.current_suit_idx = 0
 
-    def overlay_suit(self, frame, landmarks):
+    def overlay_suit(self, frame, landmarks_list):
         if not self.active_suits_configs:
             return frame
 
@@ -61,6 +66,21 @@ class SuitTryOnApp:
             return frame
 
         h, w, _ = frame.shape
+
+        # เลือกคนที่มีไหล่กว้างที่สุด (ใกล้กล้องมากที่สุด)
+        if len(landmarks_list) > 1:
+            best_idx = 0
+            best_width = 0
+            for i, lm in enumerate(landmarks_list):
+                lx = lm[11].x
+                rx = lm[12].x
+                shld_w = abs(lx - rx)
+                if shld_w > best_width:
+                    best_width = shld_w
+                    best_idx = i
+            landmarks = landmarks_list[best_idx]
+        else:
+            landmarks = landmarks_list[0]
         l_shld = landmarks[11]
         r_shld = landmarks[12]
 
