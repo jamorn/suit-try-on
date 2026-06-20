@@ -218,6 +218,7 @@ class SuitTryOnApp:
         self.renderer = SuitRenderer(suit_cache)
 
     def set_user_sex(self, sex: str) -> None:
+        """Filter suit list by sex and reset current index."""
         filtered = [s for s in self.all_suits_configs if s.sex == sex and s.enabled]
         if not filtered:
             logger.warning("ไม่มีสูทสำหรับเพศ '%s' คงค่าเดิม (%s)", sex, self.current_sex)
