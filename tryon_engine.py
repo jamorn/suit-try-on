@@ -165,10 +165,7 @@ class SuitRenderer:
         suit_cropped = suit_resized[crop_y1:crop_y2, crop_x1:crop_x2]
 
         # Alpha Blending
-        # NOTE: shape[2] == 4 check assumes 3+ dims (RGBA).
-        # If grayscale PNG is loaded (unlikely for suits), len(shape) == 2
-        # and this would raise IndexError. Safe to ignore for current assets.
-        if suit_cropped.shape[2] == 4:
+        if suit_cropped.ndim == 3 and suit_cropped.shape[2] == 4:
             # NOTE: `suit_cropped[:, :, 3:4] / 255.0` produces float64.
             # For ~5% speed gain, add `.astype(np.float32)` if FPS drops later.
             alpha = suit_cropped[:, :, 3:4] / 255.0
@@ -249,7 +246,8 @@ class SuitTryOnApp:
 
     def close(self) -> None:
         """ปิด MediaPipe Detector (คืน Resource C++)"""
-        if hasattr(self, 'detector') and self.detector:
+        # detector is always created in __init__ unless constructor fails.
+        if hasattr(self, "detector"):
             self.detector.close()
 
     def switch_suit(self) -> None:
