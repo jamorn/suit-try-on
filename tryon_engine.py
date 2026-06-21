@@ -61,7 +61,7 @@ class SuitRenderer:
         if landmarks is None:
             return frame
 
-        rect = self._calculate_suit_rect(frame.shape, landmarks, suit_img, config.y_offset)
+        rect = self._calculate_suit_rect(frame.shape, landmarks, suit_img, config)
         self._blend(frame, suit_img, rect)
 
         return frame
@@ -93,25 +93,46 @@ class SuitRenderer:
         frame_shape: tuple[int, ...],
         landmarks: PoseLandmarkList,
         suit_img: np.ndarray,
-        y_offset: float,
+        config: SuitConfig,
     ) -> SuitRect:
-        """คำนวณตำแหน่งและขนาดของสูทที่ต้องการวาง"""
+        """คำนวณตำแหน่งและขนาดของสูท โดยใช้ anchor_y เป็นจุดยึดที่ไหล่
+
+        anchor_y = สัดส่วนในแนวตั้งของรูป (0.0=บน, 1.0=ล่าง)
+        ที่ควรประกบกับ landmark ไหล่ของมนุษย์
+        """
         h, w = frame_shape[:2]
 
         left_shld = landmarks[LEFT_SHOULDER]
         right_shld = landmarks[RIGHT_SHOULDER]
 
-        shoulder_width = max(1, int(abs(left_shld.x - right_shld.x) * w * SHOULDER_SCALE))
+        # --- คำนวณขนาดตามสัดส่วน ---
+        base_width = max(1, int(abs(left_shld.x - right_shld.x) * w * SHOULDER_SCALE))
         aspect = suit_img.shape[0] / suit_img.shape[1]
-        suit_height = int(shoulder_width * aspect)
+        suit_height = int(base_width * aspect)
 
-        center_x = int((left_shld.x + right_shld.x) * w / 2)
-        center_y = int((left_shld.y + right_shld.y) * h / 2) - int(shoulder_width * y_offset)
+        # --- ตำแหน่งกึ่งกลางระหว่างไหล่ (ต้อง smooth ก่อนคำนวณ center_y) ---
+        shld_center_x = int((left_shld.x + right_shld.x) * w / 2)
+        shld_center_y = int((left_shld.y + right_shld.y) * h / 2)
 
         if self.smoothing_enabled:
-            center_x, center_y = self._smooth(center_x, center_y)
+            shld_center_x, shld_center_y = self._smooth(shld_center_x, shld_center_y)
 
-        return SuitRect(x=center_x, y=center_y, width=shoulder_width, height=suit_height)
+        # --- วาง anchor_y ให้ตรงกับ landmark ไหล่ ---
+        center_x = shld_center_x
+        center_y = shld_center_y + (suit_height // 2) - int(suit_height * config.anchor_y)
+
+        # --- Auto-fit: scale ถ้าชุดยาวเกินขอบล่างของจอ ---
+        bottom_edge = center_y + suit_height // 2
+        max_bottom = h - 10  # เผื่อขอบ
+        if config.is_full_body and bottom_edge > max_bottom:
+            scale = (max_bottom - (center_y - suit_height // 2)) / suit_height
+            suit_width = max(1, int(base_width * scale))
+            suit_height = max(1, int(suit_height * scale))
+            center_y = shld_center_y + (suit_height // 2) - int(suit_height * config.anchor_y)
+        else:
+            suit_width = base_width
+
+        return SuitRect(x=center_x, y=center_y, width=suit_width, height=suit_height)
 
     def _smooth(self, x: int, y: int) -> tuple[int, int]:
         """EMA Smoothing ลดการกระตุก (เก็บค่า float ป้องกัน Sticky Effect)"""
