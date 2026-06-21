@@ -1,121 +1,173 @@
 # 🪟 ติดตั้งและรัน Virtual Suit Try-On บน Windows
 
-คู่มือนี้สำหรับ **มือใหม่ที่ใช้ Windows ครั้งแรก** ตั้งแต่ลง Python จนถึงรันโปรแกรมเห็นหน้าคนในกล้อง
+คู่มือนี้ **เขียนสำหรับคนที่ไม่เคยเปิด Command Prompt มาก่อน** — ทำตามทีละขั้นตอนได้เลยครับ
 
 ---
 
-## 📦 1. ติดตั้ง Python 3.12.x
+## 🔰 ก่อนเริ่ม ขอให้เข้าใจภาพรวมก่อน
 
-### 1.1 ดาวน์โหลด
+โปรแกรมนี้ต้องใช้ 4 สิ่งประกอบกัน:
 
-ไปที่ https://www.python.org/downloads/ → เลือก **Python 3.12.x** (เช่น 3.12.5)
+```
+Python 3.12     ← ภาษาที่ใช้รัน
+     +
+opencv-python   ← เปิดกล้อง + แสดงรูป
+mediapipe       ← จับตำแหน่งร่างกาย
+numpy           ← คำนวณตัวเลข
+     +
+assets/         ← รูปสูท + โมเดล
+     +
+main.py         ← ตัวโปรแกรม
+```
 
-> ⚠️ **สำคัญ:** ตอนติดตั้ง **ต้อง勾选 (ติ๊ก) "Add Python to PATH"** ที่หน้าจอแรก มิฉะนั้นจะเรียก `python` ไม่เจอ
+---
 
-### 1.2 ตรวจสอบหลังติดตั้ง
+## 📦 ขั้นตอนที่ 1: ติดตั้ง Python 3.12.x
 
-เปิด **Command Prompt** (หรือ Terminal, PowerShell) แล้วพิมพ์:
+### 1.1 เปิดเว็บเบราว์เซอร์ (Chrome / Edge)
+
+ไปที่: https://www.python.org/downloads/
+
+### 1.2 กดปุ่มสีเหลือง "Download Python 3.12.x"
+
+(ตัวเลขอาจเป็น 3.12.5, 3.12.6, 3.12.7 — เลขมากสุดคือใหม่สุด)
+
+### 1.3 เปิดไฟล์ที่โหลดมา ดับเบิลคลิก
+
+### 1.4 ⚠️ สำคัญมาก: ที่หน้าจอแรก **ต้องติ๊กถูกที่ข้อความนี้**
+
+```
+☐ Install launcher for all users (recommended)
+☑ **Add Python 3.12 to PATH**   ← ติ๊กอันนี้ด้วย!
+```
+
+### 1.5 กด "Install Now" → รอจนขึ้น "Setup was successful" → กด "Close"
+
+### 1.6 ทดสอบว่า Python ทำงาน
+
+- กดปุ่ม `Windows` ที่คีย์บอร์ด
+- พิมพ์ `cmd` → Enter (จะเปิดหน้าต่างสีดำ ชื่อ Command Prompt)
+- พิมพ์:
 
 ```cmd
 python --version
 ```
 
-ต้องขึ้นว่า `Python 3.12.x`
-
-```cmd
-where.exe python
-```
-
-ควรเห็น path คล้าย:
-```
-C:\Users\<ชื่อคุณ>\AppData\Local\Programs\Python\Python312\python.exe
-```
+- ถ้าขึ้น `Python 3.12.x` → ✅ สำเร็จ
 
 ---
 
-## 📁 2. โคลนโปรเจกต์จาก GitHub
+## 📁 ขั้นตอนที่ 2: โหลดโปรเจกต์จาก GitHub
+
+### 2.1 เปิด Command Prompt (หน้าต่างสีดำ)
+
+กด `Windows` → พิมพ์ `cmd` → Enter
+
+### 2.2 สร้างโฟลเดอร์ Projects (ถ้ายังไม่มี)
+
+ค่อยๆ พิมพ์ทีละบรรทัด กด Enter หลังแต่ละบรรทัด:
 
 ```cmd
 cd C:\
 mkdir Projects
+```
+
+### 2.3 เข้าไปในโฟลเดอร์ Projects แล้วโหลดโปรเจกต์
+
+```cmd
 cd Projects
 git clone -b refactor/error-handling-improvements https://github.com/jamorn/suit-try-on.git
+```
+
+> ⚠️ **ถ้าขึ้น `'git' is not recognized`** → ยังไม่มี Git ให้ลงจาก https://git-scm.com/download/win (กด Next อย่างเดียวจนจบ) แล้วเปิด `cmd` ใหม่ แล้วเริ่มขั้นตอน 2.3 ใหม่
+
+### 2.4 เข้าไปในโฟลเดอร์โปรเจกต์
+
+```cmd
 cd suit-try-on
 ```
 
-> 💡 ถ้าไม่มี `git` ให้ลงจาก https://git-scm.com/download/win (เลือก Git for Windows, ค่าเริ่มต้นทั้งหมด Next ได้เลย)
-
-หลังจาก clone เสร็จ ให้ตรวจสอบว่ามีไฟล์เหล่านี้:
+### 2.5 ตรวจสอบว่ามีไฟล์อะไรบ้าง
 
 ```cmd
 dir
 ```
 
-ต้องเห็น:
+ต้องเห็นชื่อไฟล์ประมาณนี้:
+
 ```
 config.py
 main.py
 tryon_engine.py
 requirements.txt
-assets/
+assets (folder)
 ```
 
 ---
 
-## 🔧 3. สร้าง Virtual Environment (⚠️ จุดที่มือใหม่พลิกบ่อย)
+## 🔧 ขั้นตอนที่ 3: สร้าง Virtual Environment (.venv)
+
+Virtual Environment คือ **"โฟลเดอร์พิเศษ"** ที่แยก Python + Library ของโปรเจกต์นี้ออกจากเครื่องเรา ป้องกันชนกับโปรแกรมอื่น
 
 ### 3.1 สร้าง .venv
+
+**ยังอยู่ในหน้าต่าง Command Prompt เดิม** — ในโฟลเดอร์ `C:\Projects\suit-try-on`
+
+พิมพ์:
 
 ```cmd
 python -m venv .venv
 ```
 
-### 3.2 เปิดใช้งาน (Activate)
+รอสักครู่ จะกลับมาที่光标เฉยๆ (ไม่มี error)
+
+### 3.2 เปิดใช้งาน .venv
+
+พิมพ์:
 
 ```cmd
 .venv\Scripts\activate
 ```
 
-ถ้าสำเร็จ จะเห็น `(.venv)` ขึ้นด้านหน้าซ้าย:
+ถ้าสำเร็จ จะเห็น **`.venv`** โผล่มาด้านหน้าซ้าย:
 
 ```
 (.venv) C:\Projects\suit-try-on>
 ```
 
-### 3.3 เช็คว่าอยู่ใน .venv จริงหรือไม่
+### 3.3 เช็คว่า .venv ทำงานจริง
+
+พิมพ์:
 
 ```cmd
 where.exe python
 ```
 
-ต้องขึ้น path เป็น:
+ต้องขึ้น path ที่มี `.venv` อยู่:
+
 ```
 C:\Projects\suit-try-on\.venv\Scripts\python.exe
 ```
 
-> ⚠️ **⚠️ ปัญหาที่พบบ่อย:** ถ้าเห็น `C:\Users\...\Python312\python.exe` แสดงว่ายังไม่ได้ activate .venv — `pip install` จะไปลงที่ Global Python แทน
-
-**วิธีแก้:** รัน `.venv\Scripts\activate` อีกครั้ง แล้ว `where.exe python` เช็คให้แน่ใจ
+> ⚠️ **มือใหม่พลิกตรงนี้บ่อยมาก!** ถ้าเห็น `C:\Users\...\Python312\python.exe` แสดงว่ายังไม่ได้ Activate .venv → พิมพ์ `.venv\Scripts\activate` อีกครั้ง
 
 ---
 
-## 📥 4. ติดตั้ง Library (opencv-python, mediapipe, numpy)
+## 📥 ขั้นตอนที่ 4: ติดตั้ง Library
 
-**เมื่อมั่นใจว่า `(.venv)` แสดงอยู่** ให้รัน:
+**ตรวจสอบอีกครั้งว่าเห็น `(.venv)` อยู่ด้านซ้ายมือ** แล้วค่อยพิมพ์:
 
 ```cmd
 python -m pip install -r requirements.txt
 ```
 
-หรือติดตั้งทีละตัว:
+รอประมาณ 1-3 นาที จะขึ้นข้อความประมาณนี้:
 
-```cmd
-python -m pip install mediapipe opencv-python "numpy>=1.24.0,<2.0.0"
+```
+Successfully installed mediapipe-0.10.x numpy-1.26.x opencv-python-4.x.x
 ```
 
-รอจนขึ้น `Successfully installed ...` (ใช้เวลาประมาณ 1-3 นาที)
-
-ตรวจสอบ:
+### ตรวจสอบว่าติดตั้งครบ
 
 ```cmd
 python -m pip list
@@ -123,112 +175,137 @@ python -m pip list
 
 ต้องเห็น:
 
-| Package        | Version   |
-|----------------|-----------|
-| opencv-python  | >= 4.8    |
-| mediapipe      | >= 0.10   |
-| numpy          | 1.2x.x    |
+| ชื่อ Package    |
+|-----------------|
+| mediapipe       |
+| opencv-python   |
+| numpy           |
 
 ---
 
-## 📂 5. ตรวจสอบไฟล์ Model และรูปสูท
+## 📂 ขั้นตอนที่ 5: เตรียมไฟล์ Model + รูปสูท
 
-### 5.1 โมเดล MediaPipe
+### 5.1 เช็คว่ามี folder assets หรือยัง
 
-เข้าไปที่ `assets/` โฟลเดอร์:
+```cmd
+dir
+```
+
+ถ้าไม่เห็น `assets` ให้พิมพ์:
+
+```cmd
+mkdir assets
+```
+
+### 5.2 เช็คของใน assets
 
 ```cmd
 dir assets
 ```
 
-ต้องมีไฟล์: `pose_landmarker_lite.task`
+ควรมีไฟล์เหล่านี้:
 
-> 💡 ถ้าไม่มี ให้ดาวน์โหลดจาก:
-> https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task
-> แล้ววางไว้ใน `assets/`
+| ไฟล์                          | ได้จาก                                   |
+|------------------------------|------------------------------------------|
+| `pose_landmarker_lite.task`  | ดาวน์โหลดเอง (ขั้นตอน 5.3)               |
+| `male_suit_1.png`            | หา PNG สูทผู้ชาย (ขั้นตอน 5.4)          |
+| `male_suit_2.png`            | หา PNG สูทผู้ชาย                         |
+| `female_suit_1.png`          | หา PNG สูทผู้หญิง                        |
+| `female_suit_2.png`          | หา PNG สูทผู้หญิง                        |
 
-### 5.2 รูปสูท (PNG พื้นโปร่งใส)
+### 5.3 ดาวน์โหลดโมเดล MediaPipe (จำเป็น!)
 
-สร้างหรือวางไฟล์ PNG สูทในโฟลเดอร์ `assets/`:
+เปิดเว็บนี้ในเบราว์เซอร์:
 
-- `male_suit_1.png`
-- `male_suit_2.png`
-- `female_suit_1.png`
-- `female_suit_2.png`
+https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/latest/pose_landmarker_lite.task
 
-> ตัวอย่างสูท PNG: https://www.freepngs.com/ (ค้นหา suit หรือ blazer)
+กด `Ctrl + S` (Save) → เลือกโฟลเดอร์ `C:\Projects\suit-try-on\assets\` → บันทึก
+
+### 5.4 หารูปสูท PNG
+
+- เปิด Google → ค้นหา `suit png transparent` (หรือ `blazer png`, `suit png`)
+- เลือกรูปที่มีพื้นหลังโปร่งใส (เห็นตาหมากรุก)
+- คลิกขวา → Save image as → บันทึกใน `C:\Projects\suit-try-on\assets\`
+- ตั้งชื่อตามนี้:
+  - `male_suit_1.png`
+  - `male_suit_2.png`
+  - `female_suit_1.png`
+  - `female_suit_2.png`
 
 ---
 
-## 🎬 6. รันโปรแกรม
+## 🎬 ขั้นตอนที่ 6: รันโปรแกรม!
 
-### 6.1 รันตรง ๆ (แนะนำ)
+**ให้อยู่ใน Command Prompt ที่มี `(.venv)` และอยู่ในโฟลเดอร์ `C:\Projects\suit-try-on`**
+
+พิมพ์:
 
 ```cmd
 .venv\Scripts\python.exe main.py
 ```
 
-### 6.2 รันผ่าน VS Code
-
-1. เปิด VS Code:
-   ```cmd
-   code .
-   ```
-2. กด `Ctrl+Shift+P` → พิมพ์ `Python: Select Interpreter`
-3. เลือก `./.venv/Scripts/python.exe`
-4. เปิดไฟล์ `main.py` → กดปุ่ม ▶️ (Run) มุมขวาบน
+จะเห็นหน้าจอเปิดขึ้นมาแสดงภาพจากกล้อง พร้อมสูทที่ร่างกายคุณ!
 
 ---
 
-## 🎮 7. การใช้งาน
+## 🎮 ขั้นตอนที่ 7: วิธีใช้งาน
 
-| ปุ่ม | คำสั่ง                     |
-|-----|---------------------------|
-| `S` | เปลี่ยนสูท                |
-| `F` | สลับเพศ (ชาย/หญิง)        |
-| `T` | เปิด/ปิด Smoothing        |
-| `Q` | ออกจากโปรแกรม             |
+ขณะที่โปรแกรมรันอยู่ — กดปุ่มบนคีย์บอร์ด:
+
+| ปุ่ม | คำสั่ง                       |
+|-----|-----------------------------|
+| `S` | เปลี่ยนสูท                  |
+| `F` | สลับเพศ (ชาย → หญิง)       |
+| `T` | เปิด/ปิด Smooth (ลดสั่น)    |
+| `Q` | ปิดโปรแกรม                  |
 
 ---
 
-## ❗ 8. ปัญหาที่พบบ่อย (Troubleshooting)
+## ❗ ขั้นตอนที่ 8: ปัญหาที่พบบ่อย
 
-### ไฟล์ไม่เข้า cache
+### 8.1 Error: python ไม่เจอ
 
 ```
-WARNING:tryon_engine:ไม่พบไฟล์รูป assets/male_suit_1.png
+'python' is not recognized
 ```
 
-**แก้:** ตรวจสอบว่าไฟล์ PNG อยู่ใน `assets/` จริง และชื่อตรงกับใน `config.py`
+→ ลง Python ใหม่ อย่าลืมติ๊ก **"Add Python to PATH"**
 
-### ไม่เจอกล้อง
+### 8.2 Error: ไม่เจอกล้อง
 
 ```
 ERROR:main:ไม่สามารถเปิดกล้องได้
 ```
 
-**แก้:** ตรวจสอบว่า Webcam ต่ออยู่ หรือไม่มีโปรแกรมอื่นใช้กล้องอยู่ (Zoom, Teams, OBS)
+→ ปิดโปรแกรมอื่นที่ใช้กล้อง (Zoom, Teams, OBS)
 
-### MediaPipe import error
+### 8.3 เปิดกล้องแล้วค้างสีดำ
 
-ถ้าขึ้น error เกี่ยวกับ `NormalizedLandmark`:
+→ ลองรันใหม่ หรือเสียบกล้องใหม่
 
-**แก้:** รัน `python -m pip install --upgrade mediapipe` หรือตรวจสอบ mediapipe version:
+### 8.4 Error ตอน git clone
 
-```cmd
-python -m pip show mediapipe
+```
+'git' is not recognized
 ```
 
-ต้องเป็น `0.10.x`
+→ ลง Git จาก https://git-scm.com/download/win
+
+### 8.5 Error ตอน import NormalizedLandmark
+
+→ รัน:
+
+```cmd
+python -m pip install --upgrade mediapipe
+```
 
 ---
 
-## ✅ สรุปคำสั่งแบบรวบรัด (สำหรับคนที่เคยทำแล้ว)
+## 🚀 รวบรัด สำหรับคนที่เคยทำแล้ว
 
 ```cmd
 cd C:\Projects\suit-try-on
 .venv\Scripts\activate
-python -m pip install -r requirements.txt
 .venv\Scripts\python.exe main.py
 ```
 
