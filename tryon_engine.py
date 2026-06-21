@@ -125,7 +125,9 @@ class SuitRenderer:
         bottom_edge = center_y + suit_height // 2
         max_bottom = h - 10  # เผื่อขอบ
         if config.is_full_body and bottom_edge > max_bottom:
-            scale = (max_bottom - (center_y - suit_height // 2)) / suit_height
+            top_edge = center_y - suit_height // 2
+            available = max_bottom - top_edge
+            scale = min(1.0, available / suit_height)
             suit_width = max(1, int(base_width * scale))
             suit_height = max(1, int(suit_height * scale))
             center_y = shld_center_y + (suit_height // 2) - int(suit_height * config.anchor_y)
@@ -214,9 +216,7 @@ class SuitTryOnApp:
             base_options=base_options,
             running_mode=mp.tasks.vision.RunningMode.IMAGE
         )
-        self.detector: mp.tasks.vision.PoseLandmarker = (
-            mp.tasks.vision.PoseLandmarker.create_from_options(options)
-        )
+        self.detector = mp.tasks.vision.PoseLandmarker.create_from_options(options)
 
         # Suit config
         self.all_suits_configs: list[SuitConfig] = SUIT_DATA
