@@ -6,7 +6,9 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 import numpy as np
 import mediapipe as mp
-from mediapipe.framework.formats.landmark_pb2 import NormalizedLandmark
+#from mediapipe.framework.formats.landmark_pb2 import NormalizedLandmark
+# เปลี่ยนมาใช้ตำแหน่งใหม่ของ MediaPipe 0.10.x:
+from mediapipe.tasks.python.components.containers.landmark import NormalizedLandmark
 from config import SUIT_DATA, MODEL_PATH, SuitConfig
 
 logger = logging.getLogger(__name__)
