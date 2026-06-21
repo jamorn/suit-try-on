@@ -133,10 +133,11 @@ class SuitRenderer:
             scale = max(0.1, min(1.0, available / suit_height))
             suit_width = max(1, int(base_width * scale))
             suit_height = max(1, int(suit_height * scale))
-            center_y = shld_center_y + (suit_height // 2) - int(suit_height * config.anchor_y)
         else:
             suit_width = base_width
-            center_y = shld_center_y + (suit_height // 2) - int(suit_height * config.anchor_y)
+
+        # คำนวณ center_y ครั้งเดียวหลัง if-else (ใช้ suit_height ค่าล่าสุด)
+        center_y = shld_center_y + (suit_height // 2) - int(suit_height * config.anchor_y)
 
         return SuitRect(x=center_x, y=center_y, width=suit_width, height=suit_height)
 
