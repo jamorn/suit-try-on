@@ -119,18 +119,25 @@ class SuitRenderer:
 
         # --- วาง anchor_y ให้ตรงกับ landmark ไหล่ ---
         center_x = shld_center_x
-        center_y = shld_center_y + (suit_height // 2) - int(suit_height * config.anchor_y)
+        top_edge = shld_center_y - int(suit_height * config.anchor_y)
+        max_bottom = h - 10
+
+        # Guard: ไหล่อยู่ล่างจอ ไม่ต้องวาด
+        if top_edge >= max_bottom:
+            return SuitRect(x=0, y=0, width=0, height=0)
 
         # --- Auto-fit: scale ถ้าชุดยาวเกินขอบล่างของจอ ---
-        bottom_edge = center_y + suit_height // 2
-        max_bottom = h - 10  # เผื่อขอบ
+        bottom_edge = top_edge + suit_height
         if config.is_full_body and bottom_edge > max_bottom:
-            scale = (max_bottom - (center_y - suit_height // 2)) / suit_height
+            available = max_bottom - top_edge
+            scale = max(0.1, min(1.0, available / suit_height))
             suit_width = max(1, int(base_width * scale))
             suit_height = max(1, int(suit_height * scale))
-            center_y = shld_center_y + (suit_height // 2) - int(suit_height * config.anchor_y)
         else:
             suit_width = base_width
+
+        # คำนวณ center_y ครั้งเดียวหลัง if-else (ใช้ suit_height ค่าล่าสุด)
+        center_y = shld_center_y + (suit_height // 2) - int(suit_height * config.anchor_y)
 
         return SuitRect(x=center_x, y=center_y, width=suit_width, height=suit_height)
 
@@ -214,9 +221,7 @@ class SuitTryOnApp:
             base_options=base_options,
             running_mode=mp.tasks.vision.RunningMode.IMAGE
         )
-        self.detector: mp.tasks.vision.PoseLandmarker = (
-            mp.tasks.vision.PoseLandmarker.create_from_options(options)
-        )
+        self.detector = mp.tasks.vision.PoseLandmarker.create_from_options(options)
 
         # Suit config
         self.all_suits_configs: list[SuitConfig] = SUIT_DATA

@@ -14,7 +14,7 @@ class SuitConfig:
 
 SUIT_DATA: tuple[SuitConfig, ...] = (
     SuitConfig(path='assets/male_suit_1.png', order=1, sex='M'),
-    SuitConfig(path='assets/male_suit_2.png', order=2, sex='M'),
+    SuitConfig(path='assets/male_suit_2.png', order=2, sex='M', anchor_y=0.25),
     SuitConfig(path='assets/female_suit_1.png', order=1, sex='F', anchor_y=0.15, is_full_body=True),
     SuitConfig(path='assets/female_suit_2.png', order=2, sex='F', anchor_y=0.15, is_full_body=True),
 )
