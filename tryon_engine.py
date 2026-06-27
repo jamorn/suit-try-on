@@ -8,9 +8,9 @@ from dataclasses import dataclass
 import numpy as np
 import mediapipe as mp
 from mediapipe.tasks.python.components.containers.landmark import NormalizedLandmark
-from config import SUIT_DATA, MODEL_PATH, SuitConfig
+from config import SUIT_DATA, MODEL_PATH, DEFAULT_SEX, SuitConfig
 
-logger = logging.getLogger(__name__)  # ✅ แก้: name -> __name__
+logger = logging.getLogger(__name__)
 
 SMOOTH_ALPHA_DEFAULT = 0.5
 LEFT_SHOULDER = 11
@@ -29,7 +29,7 @@ class SuitRect:
 
 
 class SuitRenderer:
-    def __init__(self, suit_cache: dict[str, np.ndarray]) -> None:  # ✅ แก้: init -> __init__
+    def __init__(self, suit_cache: dict[str, np.ndarray]) -> None:
         self.suit_cache = suit_cache
         self.smoothing_enabled: bool = False
         self.smooth_alpha: float = SMOOTH_ALPHA_DEFAULT
@@ -115,6 +115,10 @@ class SuitRenderer:
         aspect = suit_img.shape[0] / suit_img.shape[1]
         suit_height = int(base_width * aspect)
 
+        # ✨ STRETCH: คูณ stretch_x, stretch_y เข้าไป
+        suit_width = max(1, int(base_width * config.stretch_x))
+        suit_height = max(1, int(suit_height * config.stretch_y))
+
         shld_center_x = int((left_shld.x + right_shld.x) * w / 2)
         shld_center_y = int((left_shld.y + right_shld.y) * h / 2)
 
@@ -128,11 +132,11 @@ class SuitRenderer:
         if top_edge >= max_bottom:
             return SuitRect(x=0, y=0, width=0, height=0)
 
-        suit_width = base_width
         center_y = top_edge + (suit_height // 2)
 
-        # ✨ ชดเชยตำแหน่งแนวนอนตาม x_offset
+        # ✨ ชดเชยตำแหน่งแนวนอนและแนวตั้ง
         center_x += config.x_offset
+        center_y += config.y_offset
 
         return SuitRect(x=center_x, y=center_y, width=suit_width, height=suit_height)
 
@@ -174,7 +178,7 @@ class SuitRenderer:
         roi = frame[frame_y1:frame_y2, frame_x1:frame_x2]
         suit_cropped = suit_resized[crop_y1:crop_y2, crop_x1:crop_x2]
 
-        # --- uint16 Blending เพื่อความรวดเร็ว ---
+        # --- uint16 Blending ---
         if suit_cropped.ndim == 3 and suit_cropped.shape[2] == 4:
             alpha = suit_cropped[:, :, 3:4]
             suit_bgr = suit_cropped[:, :, :3]
@@ -188,7 +192,7 @@ class SuitRenderer:
 
 
 class SuitTryOnApp:
-    def __init__(self) -> None:  # ✅ แก้: init -> __init__
+    def __init__(self) -> None:
         if not os.path.exists(MODEL_PATH):
             raise FileNotFoundError(f"ไม่พบไฟล์โมเดล {MODEL_PATH}")
 
@@ -202,7 +206,8 @@ class SuitTryOnApp:
         self.all_suits_configs: list[SuitConfig] = SUIT_DATA
         self.active_suits_configs: list[SuitConfig] = []
         self.current_suit_idx: int = 0
-        self.current_sex: str | None = None
+        self.current_sex: str = DEFAULT_SEX   # ✅ ใช้ค่า default จาก config
+        self.set_user_sex(DEFAULT_SEX)        # ✅ เรียกทันที
 
         suit_cache: dict[str, np.ndarray] = {}
         for s in self.all_suits_configs:
@@ -241,6 +246,25 @@ class SuitTryOnApp:
             return 0
         return self.active_suits_configs[self.current_suit_idx].x_offset
 
+    @property
+    def current_y_offset(self) -> int:
+        """✨ เพิ่มใหม่: อ่านค่า y_offset ของชุดปัจจุบัน"""
+        if not self.active_suits_configs:
+            return 0
+        return self.active_suits_configs[self.current_suit_idx].y_offset
+
+    @property
+    def current_stretch_x(self) -> float:
+        if not self.active_suits_configs:
+            return 1.0
+        return self.active_suits_configs[self.current_suit_idx].stretch_x
+
+    @property
+    def current_stretch_y(self) -> float:
+        if not self.active_suits_configs:
+            return 1.0
+        return self.active_suits_configs[self.current_suit_idx].stretch_y
+
     def process(self, frame: np.ndarray) -> np.ndarray:
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
@@ -265,14 +289,52 @@ class SuitTryOnApp:
             return
         config = self.active_suits_configs[self.current_suit_idx]
         config.x_offset += delta
-        logger.info("[%s] x_offset ปรับเป็น: %d", os.path.basename(config.path), config.x_offset)
+        logger.info("[%s] x_offset: %d", os.path.basename(config.path), config.x_offset)
 
     def reset_x_offset(self) -> None:
         if not self.active_suits_configs:
             return
         config = self.active_suits_configs[self.current_suit_idx]
         config.x_offset = 0
-        logger.info("[%s] x_offset reset เป็น: 0", os.path.basename(config.path))
+        logger.info("[%s] x_offset reset: 0", os.path.basename(config.path))
+
+    def adjust_y_offset(self, delta: int) -> None:
+        """✨ เพิ่มใหม่: ปรับ y_offset แบบ real-time"""
+        if not self.active_suits_configs:
+            return
+        config = self.active_suits_configs[self.current_suit_idx]
+        config.y_offset += delta
+        logger.info("[%s] y_offset: %d", os.path.basename(config.path), config.y_offset)
+
+    def reset_y_offset(self) -> None:
+        """✨ เพิ่มใหม่: Reset y_offset กลับไป 0"""
+        if not self.active_suits_configs:
+            return
+        config = self.active_suits_configs[self.current_suit_idx]
+        config.y_offset = 0
+        logger.info("[%s] y_offset reset: 0", os.path.basename(config.path))
+
+    def adjust_stretch_x(self, delta: float) -> None:
+        if not self.active_suits_configs:
+            return
+        config = self.active_suits_configs[self.current_suit_idx]
+        config.stretch_x = round(max(0.5, min(2.0, config.stretch_x + delta)), 2)
+        logger.info("[%s] stretch_x: %.2f", os.path.basename(config.path), config.stretch_x)
+
+    def adjust_stretch_y(self, delta: float) -> None:
+        if not self.active_suits_configs:
+            return
+        config = self.active_suits_configs[self.current_suit_idx]
+        config.stretch_y = round(max(0.5, min(2.0, config.stretch_y + delta)), 2)
+        logger.info("[%s] stretch_y: %.2f", os.path.basename(config.path), config.stretch_y)
+
+    def reset_stretch(self) -> None:
+        if not self.active_suits_configs:
+            return
+        config = self.active_suits_configs[self.current_suit_idx]
+        config.stretch_x = 1.0
+        config.stretch_y = 1.0
+        logger.info("[%s] stretch reset: x=1.0, y=1.0", os.path.basename(config.path))
 
     def close(self) -> None:
         if hasattr(self, "detector"):
